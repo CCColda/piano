@@ -1,0 +1,3 @@
+[submodule "Neon"]
+	path = lib/neon
+	url = https://github.com/CCColda/neon
