@@ -8,6 +8,8 @@ project(piano
 set(
 	PIANO_SOURCES
 	src/main.cpp
+	src/serial_parser.cpp
+	src/sounds.cpp
 	src/serial.cpp
 	src/windows_serial.cpp
 	src/audio.cpp
