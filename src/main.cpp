@@ -11,6 +11,26 @@
 
 #include "audio.h"
 
+struct PortValidator : public CLI::Validator {
+	PortValidator()
+	{
+		name_ = "PORT";
+		func_ = [](const std::string &str) {
+			const auto com_part = str.substr(0, 3);
+			const auto number_part = str.substr(3);
+
+			const auto number_part_valid = std::transform_reduce(
+			    number_part.begin(), number_part.end(),
+			    true, std::logical_and{},
+			    [](const char &c) { return (bool)std::isdigit(c); });
+
+			return CLI::detail::to_lower(com_part) == "com" && number_part_valid
+			           ? std::string()
+			           : "Invalid COM port.";
+		};
+	}
+};
+
 void serial_thread(const std::string &port, unsigned int baud, const Serial::Settings &settings, Global *global)
 {
 	std::cout << "Trying to initialize serial on " << port << " at " << baud << "bps with the settings:\n"
@@ -60,7 +80,8 @@ int main(int argc, char *argv[])
 
 	bool test = false;
 
-	app.add_option("-p,--port", port, "The serial port to connect to");
+	app.add_option("-p,--port", port, "The serial port to connect to")
+	    ->check(PortValidator());
 	app.add_option("-b,--baud", baud, "The baud rate of the serial connection");
 	app.add_option("-s,--stop_bits,--stop", settings.stop_bits, "The number of stop bits")
 	    ->transform(CLI::CheckedTransformer(Serial::STOPBIT_MAP, CLI::ignore_case));
@@ -88,7 +109,7 @@ int main(int argc, char *argv[])
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 
-	while (!global.state != FINISHED) {
+	while (global.state == RUNNING) {
 		auto localSounds = global.sounds.getCopy();
 
 		const auto playedNotes = audio.getActiveNotes();
