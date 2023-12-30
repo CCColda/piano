@@ -40,36 +40,44 @@ ALuint makeSineSource(ALuint buf, float pitch)
 
 bool Audio::begin()
 {
-	device = alcOpenDevice(nullptr);
-	if (!device)
-		return false;
+	if (context == nullptr) {
 
-	context = alcCreateContext(device, nullptr);
-	if (!context) {
-		alcCloseDevice(device);
-		return false;
+		device = alcOpenDevice(nullptr);
+		if (!device)
+			return false;
+
+		context = alcCreateContext(device, nullptr);
+		if (!context) {
+			alcCloseDevice(device);
+			return false;
+		}
+
+		alcMakeContextCurrent(context);
+
+		sine_buffer = makeSineBuffer();
+
+		return true;
 	}
-
-	alcMakeContextCurrent(context);
-
-	sine_buffer = makeSineBuffer();
-
-	return true;
+	return false;
 }
 
 void Audio::end()
 {
-	for (const auto &activeNote : activeNotes) {
-		alSourceStop(activeNote.second);
-		alDeleteSources(1, &(activeNote.second));
+	if (context != nullptr) {
+		for (const auto &activeNote : activeNotes) {
+			alSourceStop(activeNote.second);
+			alDeleteSources(1, &(activeNote.second));
+		}
+		activeNotes.clear();
+
+		alDeleteBuffers(1, &sine_buffer);
+
+		alcMakeContextCurrent(nullptr);
+		alcDestroyContext(context);
+		alcCloseDevice(device);
+
+		context = nullptr;
 	}
-	activeNotes.clear();
-
-	alDeleteBuffers(1, &sine_buffer);
-
-	alcMakeContextCurrent(nullptr);
-	alcDestroyContext(context);
-	alcCloseDevice(device);
 }
 
 void Audio::setVolume(float volume)

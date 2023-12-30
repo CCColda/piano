@@ -6,6 +6,8 @@
 #include <numeric>
 #include <string>
 
+#include <iostream>
+
 namespace {
 void trimString(std::string &str)
 {
@@ -36,9 +38,8 @@ void SerialParser::processLine()
 
 		const std::uint16_t keyNumber = std::stoi(m_line.substr(1), nullptr, 0b10);
 
-		auto localSounds = m_sounds->getCopy();
-
 		for (std::size_t i = 0; i < 8; i++) {
+
 			const std::uint16_t mask = 1u << i;
 			const std::uint16_t keyCode = octaveNumber | mask;
 
@@ -46,16 +47,9 @@ void SerialParser::processLine()
 				const bool isDown = (keyNumber & mask) != 0;
 				const auto keyLookup = KEY_NOTE_PAIRS.at(keyCode);
 
-				if (isDown) {
-					localSounds.insert(keyLookup);
-				}
-				else {
-					localSounds.erase(keyLookup);
-				}
+				m_sounds->safeToggleNote(keyLookup, isDown);
 			}
 		}
-
-		m_sounds->setTo(localSounds);
 	}
 }
 

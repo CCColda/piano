@@ -8,6 +8,9 @@ project(piano
 set(
 	PIANO_SOURCES
 	src/main.cpp
+	src/app_serial_thread.cpp
+	src/app_audio_thread.cpp
+	src/app.cpp
 	src/serial_parser.cpp
 	src/sounds.cpp
 	src/serial.cpp
@@ -34,8 +37,8 @@ set(CMAKE_BUILD_TYPE DEBUG)
 add_subdirectory(lib/neon)
 
 add_executable(piano)
-target_include_directories(piano PRIVATE ${OPENAL_INCLUDE_DIR})
+target_include_directories(piano PRIVATE ${OPENAL_INCLUDE_DIR} ${NEON_INCLUDE_DIR})
 target_sources(piano PRIVATE ${PIANO_SOURCES})
 target_compile_features(piano PRIVATE cxx_std_17)
-target_link_libraries(piano PRIVATE CLI11::CLI11 OpenAL::OpenAL)
+target_link_libraries(piano PRIVATE CLI11::CLI11 OpenAL::OpenAL colda::neon colda::neon::platform)
 
