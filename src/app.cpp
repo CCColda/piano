@@ -142,7 +142,7 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 	data.state = AppState::SETUP;
 
 	arguments.port = "COM8";
-	arguments.baud = 9600;
+	arguments.baud = 115200;
 	arguments.serialSettings = Serial::ARDUINO_SETTINGS;
 	arguments.volume = 0.3f;
 
@@ -151,7 +151,7 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 		printf("Click: x=%d y=%d t=%d d=%d\n", x, y, (int)t, (int)d);
 	};
 
-	Logger::setAllOutputs(Logger::openStaticOutputStream(std::cout));
+	Logger::console = Logger::openStaticOutputStream(std::cout);
 	Logger::logLevel = Logger::Level::LVL_VERBOSE;
 }
 

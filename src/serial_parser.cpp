@@ -6,8 +6,6 @@
 #include <numeric>
 #include <string>
 
-#include <iostream>
-
 namespace {
 void trimString(std::string &str)
 {

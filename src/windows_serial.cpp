@@ -6,7 +6,7 @@
 
 	const auto port_path = std::string("\\\\.\\") + port;
 
-	serialHandle = CreateFileA(port_path.c_str(), GENERIC_READ | GENERIC_WRITE, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
+	serialHandle = CreateFileA(port_path.c_str(), GENERIC_READ, 0, 0, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, 0);
 	if (serialHandle == INVALID_HANDLE_VALUE)
 		return false;
 
@@ -33,11 +33,9 @@
 	COMMTIMEOUTS timeout = {0};
 	GetCommTimeouts(serialHandle, &timeout);
 
-	timeout.ReadIntervalTimeout = 50;
-	timeout.ReadTotalTimeoutConstant = 50;
-	timeout.ReadTotalTimeoutMultiplier = 50;
-	timeout.WriteTotalTimeoutConstant = 50;
-	timeout.WriteTotalTimeoutMultiplier = 10;
+	timeout.ReadIntervalTimeout = 0;
+	timeout.ReadTotalTimeoutConstant = 0;
+	timeout.ReadTotalTimeoutMultiplier = 0;
 
 	if (!SetCommTimeouts(serialHandle, &timeout)) {
 		CloseHandle(serialHandle);

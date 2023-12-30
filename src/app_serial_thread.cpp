@@ -29,7 +29,6 @@ void serial_thread(const AppCommandLine &commandLine, AppData *data)
 
 	while (data->state != AppState::FINISHED) {
 		parser.update();
-		std::this_thread::sleep_for(std::chrono::milliseconds(5));
 	}
 
 	serial.end();
