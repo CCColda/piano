@@ -8,6 +8,7 @@ project(piano
 set(
 	PIANO_SOURCES
 	src/main.cpp
+	src/app_graphics.cpp
 	src/app_serial_thread.cpp
 	src/app_audio_thread.cpp
 	src/app.cpp

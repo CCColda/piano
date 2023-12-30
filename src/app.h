@@ -5,7 +5,8 @@
 #include "serial.h"
 
 #include <CLI/CLI.hpp>
-#include <win32.hpp>
+
+#include "app_graphics.h"
 
 #include <thread>
 
@@ -17,9 +18,9 @@ public:
 	AppCommandLine arguments;
 
 private:
+	AppGraphics m_graphics;
 	std::thread m_serial_thread_handle;
 	std::thread m_openal_thread_handle;
-	Platform::Win32::PlatformContext m_platform_context;
 
 public:
 	PianoApp();

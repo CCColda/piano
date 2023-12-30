@@ -4,7 +4,6 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
-#include <neonEngine.h>
 
 #include "audio.h"
 #include "serial.h"
@@ -26,7 +25,6 @@ struct AppData {
 	Sounds sounds;
 	AppConditionVars condition_variables;
 
-	Neon::EnginePtr neon;
 	std::atomic_int state;
 };
 
