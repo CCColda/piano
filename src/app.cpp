@@ -31,7 +31,6 @@ struct PortValidator : public CLI::Validator {
 	}
 };
 
-
 } // namespace
 
 //! @todo strings
@@ -44,7 +43,7 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 	arguments.serialSettings = Serial::ARDUINO_SETTINGS;
 	arguments.volume = 0.3f;
 
-		Logger::console = Logger::openStaticOutputStream(std::cout);
+	Logger::console = Logger::openStaticOutputStream(std::cout);
 	Logger::logLevel = Logger::Level::LVL_VERBOSE;
 }
 
@@ -114,4 +113,6 @@ void PianoApp::cleanup()
 
 	m_serial_thread_handle.join();
 	m_openal_thread_handle.join();
+
+	m_graphics.end();
 }

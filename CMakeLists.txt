@@ -33,8 +33,8 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(CLI11)
 
-set(NEON_BUILD_PLATFORM ON)
-set(NEON_COPY_DATA_FILES ON)
+set(NEON_BUILD_PLATFORM ON CACHE BOOL "")
+set(NEON_COPY_DATA_FILES ON CACHE BOOL "")
 set(CMAKE_BUILD_TYPE DEBUG)
 
 add_subdirectory(lib/neon)
@@ -45,3 +45,10 @@ target_sources(piano PRIVATE ${PIANO_SOURCES})
 target_compile_features(piano PRIVATE cxx_std_17)
 target_link_libraries(piano PRIVATE CLI11::CLI11 OpenAL::OpenAL colda::neon colda::neon::platform)
 
+add_custom_command(
+	TARGET piano
+	POST_BUILD
+	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	COMMAND ${CMAKE_COMMAND} -E copy_directory data ${NEON_COPY_DATA_FILES_DESTINATION}
+	COMMENT "Copying data files..."
+)

@@ -1,11 +1,61 @@
 #include "app_graphics.h"
 
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 #include <neonComponent.h>
 #include <neonEngine.h>
 #include <neonResourceLoader.h>
+
+Neon::EngineObjectPtr createNoteObject(unsigned midi, bool is_sharp, float x, float w, float base_y, float max_y, Neon::ShaderComponentPtr shader)
+{
+	using namespace Neon;
+	using namespace cppx;
+
+	const float offset_x = x + (is_sharp ? -w * 0.5f : 0.0f);
+	const float extent_y = base_y + (max_y - base_y) * (is_sharp ? 0.6f : 1.0f);
+
+	const float mesh[] = {
+	    offset_x, base_y,
+	    offset_x + w, base_y,
+	    offset_x + w, extent_y,
+	    offset_x, extent_y};
+
+	static const unsigned idx[] = {0, 1, 2, 2, 3, 0};
+
+	auto obj = EngineObject::create("note_" + std::to_string(midi));
+
+	obj->addLocalNode(RenderComponent::create("note_render"));
+	obj->addNode("note_render",
+	             MeshComponent::create(
+	                 "note_mesh",
+	                 Buffer::Static((void *)mesh, sizeof(mesh)),
+	                 MeshComponent::LayoutList{{0, 2, GL_FLOAT, GL_FALSE, 0}},
+	                 Buffer::Static((void *)idx, sizeof(idx))));
+
+	obj->addLocalNode(shader);
+
+	auto su_mat = Neon::UniformStorageComponent::create("su_mat", shader->getNodeByPath<Neon::UniformComponent>("$u_mat"));
+	su_mat->set(Calcda::Matrix4::orthographic(0.0, 1.0, 0.0, 600.0, -1.0, 1.0).transpose());
+	obj->addLocalNode(su_mat);
+
+	auto su_color = Neon::UniformStorageComponent::create("su_color", shader->getNodeByPath<Neon::UniformComponent>("$u_color"));
+	su_color->set(is_sharp ? Calcda::Vector4(0.0, 0.0, 0.0, 1.0) : Calcda::Vector4::One);
+	obj->addLocalNode(su_color);
+
+	auto normalAssoc = obj->createAssociation("assoc_normal");
+	normalAssoc->setRender("note_render");
+	normalAssoc->setShader(shader);
+	normalAssoc->addUniformStorages(su_mat, su_color);
+	normalAssoc->renderPass = 0;
+
+	obj->zIndex = is_sharp ? 2 : 1;
+
+	obj->visible = true;
+
+	return obj;
+}
 
 void AppGraphics::initGraphics()
 {
@@ -19,7 +69,7 @@ void AppGraphics::initGraphics()
 
 	neon->options.outDim = {800.0f, 600.0f};
 	neon->options.postprocDim = {800.0f, 600.0f};
-	neon->options.backgroundColor = {0.8f, 0.1f, 0.1f, 1.0f};
+	neon->options.backgroundColor = {0.1f, 0.1f, 0.1f, 1.0f};
 	neon->options.clear = true;
 
 	neon->onSwapBuffers = [this]() -> void { SwapBuffers(this->m_platform_context.hdc); };
@@ -28,7 +78,7 @@ void AppGraphics::initGraphics()
 	piano_scene = Node::create("piano_scene");
 	neon->scenes->addLocalNode(piano_scene);
 
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 }
 
 void AppGraphics::mainLoop(Platform::Win32::PlatformContext *const context)
@@ -36,6 +86,12 @@ void AppGraphics::mainLoop(Platform::Win32::PlatformContext *const context)
 	if (data->state != AppState::RUNNING) {
 		CloseWindow(context->hwnd);
 		return;
+	}
+
+	const auto localSounds = data->sounds.toNotes();
+
+	for (Note n = STARTING_NOTE; n <= ENDING_NOTE; n = Note::fromMidi(n.toMidi() + 1)) {
+		notes[n]->getNodeByPath<Neon::UniformStorageComponent>("su_color")->set(localSounds.count(n) != 0 ? Calcda::Vector4(0.0, 1.0, 0.0, 1.0) : (n.isSharp() ? Calcda::Vector4(0.0, 0.0, 0.0, 1.0) : Calcda::Vector4::One));
 	}
 
 	neon->update();
@@ -47,61 +103,34 @@ void AppGraphics::initPiano()
 {
 	using namespace Neon;
 
-	static const float mesh[] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, -1.0f, 1.0f, 1.0f};
-	static const unsigned idx[] = {0, 1, 2, 1, 2, 3};
+	auto shader = ShaderComponent::create("note_shader");
+	shader->addLocalNode(ResourceLoader::loadShaderStage("vertex", GL_VERTEX_SHADER, "data/note.vertex.glsl"));
+	shader->addLocalNode(ResourceLoader::loadShaderStage("fragment", GL_FRAGMENT_SHADER, "data/note.fragment.glsl"));
+	shader->link();
+	shader->bindAttribLocation(0, "i_pos");
+	shader->addLocalNode(UniformComponent::create("u_color"));
+	shader->addLocalNode(UniformComponent::create("u_mat"));
 
-	//! @todo
-	auto obj = EngineObject::create("engineobj_sprite");
+	float x = (1.0f - PIANO_WIDTH_MULTIPLIER) * 0.5f;
 
-	obj->addLocalNode(RenderComponent::create("sprite_render"));
-	obj->addNode("sprite_render",
-	             MeshComponent::create(
-	                 "mesh1",
-	                 Buffer::Static((void *)mesh, sizeof(mesh)),
-	                 MeshComponent::LayoutList{{0, 2, GL_FLOAT, GL_FALSE, 0}, {1, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2}},
-	                 Buffer::Static((void *)idx, sizeof(idx))));
+	unsigned num_full_keys = 0;
+	for (Note n = STARTING_NOTE; n <= ENDING_NOTE; n = Note::fromMidi(n.toMidi() + 1)) {
+		if (!n.isSharp())
+			num_full_keys++;
+	}
 
-	obj->addLocalNode(ResourceLoader::loadSprite("texture", 0, "data/grid.png"));
+	const float maxwidth = (PIANO_WIDTH_MULTIPLIER / float(num_full_keys));
 
-	obj->addLocalNode(ShaderComponent::create("sprite_shader"));
-	obj->addNode("sprite_shader", ResourceLoader::loadShaderStage("vertex", GL_VERTEX_SHADER, "data/texture.gles20.vertex.glsl"));
-	obj->addNode("sprite_shader", ResourceLoader::loadShaderStage("fragment", GL_FRAGMENT_SHADER, "data/texture.gles20.fragment.glsl"));
-	obj->getNodeByPath<ShaderComponent>("sprite_shader")->link();
-	obj->getNodeByPath<ShaderComponent>("sprite_shader")->bindAttribLocation(0, "i_pos");
-	obj->getNodeByPath<ShaderComponent>("sprite_shader")->bindAttribLocation(1, "i_txc");
+	for (Note n = STARTING_NOTE; n <= ENDING_NOTE; n = Note::fromMidi(n.toMidi() + 1)) {
+		const bool is_sharp = n.isSharp();
 
-	obj->addLocalNode(ShaderComponent::create("sprite_bloom_shader"));
-	obj->addNode("sprite_bloom_shader", ResourceLoader::loadShaderStage("vertex", GL_VERTEX_SHADER, "data/texture.gles20.vertex.glsl"));
-	obj->addNode("sprite_bloom_shader", ResourceLoader::loadShaderStage("fragment", GL_FRAGMENT_SHADER, "data/texture.bloom.gles20.fragment.glsl"));
-	obj->getNodeByPath<ShaderComponent>("sprite_bloom_shader")->link();
-	obj->getNodeByPath<ShaderComponent>("sprite_bloom_shader")->bindAttribLocation(0, "i_pos");
-	obj->getNodeByPath<ShaderComponent>("sprite_bloom_shader")->bindAttribLocation(1, "i_txc");
+		auto obj = createNoteObject(n.toMidi(), is_sharp, x, maxwidth * NOTE_WIDTH_MULTIPLIER, 500, 600, shader);
+		notes[n] = obj;
+		piano_scene->addLocalNode(obj);
 
-	obj->getNodeByPath<ShaderComponent>("sprite_shader")->use();
-	obj->addNode("sprite_shader", UniformComponent::create("u_mat"));
-	obj->getNodeByPath<UniformComponent>("sprite_shader/$u_mat")->upload(Calcda::Matrix4::Identity);
-
-	obj->getNodeByPath<ShaderComponent>("sprite_bloom_shader")->use();
-	obj->addNode("sprite_bloom_shader", UniformComponent::create("u_mat"));
-	obj->addNode("sprite_bloom_shader", UniformComponent::create("u_bloom"));
-	obj->getNodeByPath<UniformComponent>("sprite_bloom_shader/$u_mat")->upload(Calcda::Matrix4::Identity);
-	obj->getNodeByPath<UniformComponent>("sprite_bloom_shader/$u_bloom")->upload(0.9f);
-
-	auto normalAssoc = obj->createAssociation("assoc_normal");
-	normalAssoc->setRender("sprite_render");
-	normalAssoc->setShader("sprite_shader");
-	normalAssoc->addSprite("texture");
-	normalAssoc->renderPass = 0;
-
-	auto bloomAssoc = obj->createAssociation("assoc_bloom");
-	bloomAssoc->setRender("sprite_render");
-	bloomAssoc->setShader("sprite_bloom_shader");
-	bloomAssoc->addSprite("texture");
-	bloomAssoc->renderPass = 1;
-
-	obj->visible = true;
-
-	piano_scene->addLocalNode(obj);
+		if (!is_sharp)
+			x += maxwidth;
+	}
 }
 
 bool AppGraphics::begin(const char *window_title, unsigned w, unsigned h, AppData *app_data)
