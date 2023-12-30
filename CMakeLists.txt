@@ -32,6 +32,8 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(CLI11)
 
+set(NEON_BUILD_PLATFORM ON)
+set(NEON_COPY_DATA_FILES ON)
 set(CMAKE_BUILD_TYPE DEBUG)
 
 add_subdirectory(lib/neon)
