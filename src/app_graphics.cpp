@@ -4,6 +4,7 @@
 #include <sstream>
 #include <thread>
 
+#include <neonBitmapFont.h>
 #include <neonComponent.h>
 #include <neonEngine.h>
 #include <neonResourceLoader.h>
@@ -88,10 +89,28 @@ void AppGraphics::mainLoop(Platform::Win32::PlatformContext *const context)
 		return;
 	}
 
+	if (countdown_data.active) {
+		const auto now = clock::now();
+		const auto value = (COUNTDOWN_BEGIN - std::chrono::duration_cast<std::chrono::seconds>(now - countdown_data.begin).count());
+
+		if (value != countdown_data.value) {
+			if (value <= 0) {
+				countdown_data.active = false;
+				countdown_render->visible = false;
+			}
+			else {
+				countdown_data.value = value;
+				countdown->remove(0);
+				countdown->insertCharacter(0, value + '0');
+				countdown->updateMesh();
+			}
+		}
+	}
+
 	const auto localSounds = data->sounds.toNotes();
 
 	for (Note n = STARTING_NOTE; n <= ENDING_NOTE; n = Note::fromMidi(n.toMidi() + 1)) {
-		notes[n]->getNodeByPath<Neon::UniformStorageComponent>("su_color")->set(localSounds.count(n) != 0 ? Calcda::Vector4(0.0, 1.0, 0.0, 1.0) : (n.isSharp() ? Calcda::Vector4(0.0, 0.0, 0.0, 1.0) : Calcda::Vector4::One));
+		keys[n]->getNodeByPath<Neon::UniformStorageComponent>("su_color")->set(localSounds.count(n) != 0 ? Calcda::Vector4(0.0, 1.0, 0.0, 1.0) : (n.isSharp() ? Calcda::Vector4(0.0, 0.0, 0.0, 1.0) : Calcda::Vector4::One));
 	}
 
 	neon->update();
@@ -125,7 +144,7 @@ void AppGraphics::initPiano()
 		const bool is_sharp = n.isSharp();
 
 		auto obj = createNoteObject(n.toMidi(), is_sharp, x, maxwidth * NOTE_WIDTH_MULTIPLIER, 500, 600, shader);
-		notes[n] = obj;
+		keys[n] = obj;
 		piano_scene->addLocalNode(obj);
 
 		if (!is_sharp)
@@ -133,13 +152,61 @@ void AppGraphics::initPiano()
 	}
 }
 
+void AppGraphics::initCountdown()
+{
+	using namespace Neon;
+
+	auto font = ResourceLoader::loadBitmapFont("calibri1250", "data/calibri1250.fnt");
+
+	countdown = BitmapTextManagerComponent::create("countdown_manager", font);
+	countdown->addCharacter('-');
+	countdown->addCharacter('.');
+	countdown->addCharacter('.');
+	countdown->addCharacter('.');
+	countdown->updateMesh();
+
+	countdown_render = EngineObject::create("countdown");
+	auto textRender = countdown->getRenderComponent();
+	auto textShader = Neon::ResourceLoader::loadTextShaders();
+	auto textSprite = font->getPageSprite(0);
+
+	countdown_render->addLocalNode(textRender);
+	countdown_render->addLocalNode(textShader);
+	countdown_render->addLocalNode(textSprite);
+
+	textShader->use();
+	textShader->getNodeByPath<UniformComponent>("$u_sampler")->upload(textSprite->slot);
+	textShader->getNodeByPath<UniformComponent>("$u_color")->upload(Calcda::Vector3::One);
+	textShader->getNodeByPath<UniformComponent>("$u_bordercolor")->upload(Calcda::Vector3::Zero);
+	textShader->getNodeByPath<UniformComponent>("$u_charwidth")->upload(0.5f);
+	textShader->getNodeByPath<UniformComponent>("$u_charedge")->upload(0.2f);
+	textShader->getNodeByPath<UniformComponent>("$u_borderwidth")->upload(0.5f);
+	textShader->getNodeByPath<UniformComponent>("$u_borderedge")->upload(0.2f);
+
+	textShader->getNodeByPath<UniformComponent>("$u_mat")->upload((Calcda::Matrix4::orthographic(0, 800, 0, 600, -1, 1) * Calcda::Matrix4::translation(Calcda::Vector3(Calcda::Vector2(400, 300) - (countdown->getSize() / 2.0), 0.0f))).transpose());
+
+	auto assoc = countdown_render->createAssociation("countdownAssoc");
+	assoc->addSprite(textSprite);
+	assoc->setRender(textRender);
+	assoc->setShader(textShader);
+	assoc->renderPass = 0;
+
+	countdown_render->visible = false;
+	piano_scene->addLocalNode(countdown_render);
+}
+
 bool AppGraphics::begin(const char *window_title, unsigned w, unsigned h, AppData *app_data)
 {
 	data = app_data;
 
 	m_platform_context.userData = this;
-	m_platform_context.onClick = [](void *context, unsigned x, unsigned y, Platform::ClickType t, Platform::ClickDirection d) -> void {
+	m_platform_context.onClick = [](void *contextPtr, unsigned x, unsigned y, Platform::ClickType t, Platform::ClickDirection d) -> void {
 		printf("Click: x=%d y=%d t=%d d=%d\n", x, y, (int)t, (int)d);
+
+		if (d == Platform::ClickDirection::DOWN) {
+			auto *const context = reinterpret_cast<Platform::Win32::PlatformContext *const>(contextPtr);
+			reinterpret_cast<decltype(this)>(context->userData)->beginCountdown();
+		}
 	};
 
 	if (m_platform_context.createGL3Window(window_title, w, h) != 0)
@@ -149,6 +216,7 @@ bool AppGraphics::begin(const char *window_title, unsigned w, unsigned h, AppDat
 
 	initGraphics();
 	initPiano();
+	initCountdown();
 
 	m_platform_context.registerLoopFunction([](void *contextPtr) -> void {
 		auto *const context = reinterpret_cast<Platform::Win32::PlatformContext *const>(contextPtr);
@@ -159,6 +227,18 @@ bool AppGraphics::begin(const char *window_title, unsigned w, unsigned h, AppDat
 	return true;
 }
 
+void AppGraphics::beginCountdown()
+{
+	if (countdown_data.active)
+		return;
+
+	countdown_data.active = true;
+	countdown_data.begin = clock::now();
+	countdown_data.value = COUNTDOWN_BEGIN + 1;
+
+	countdown_render->visible = true;
+}
+
 void AppGraphics::loop()
 {
 	m_platform_context.mainLoop();
@@ -166,7 +246,11 @@ void AppGraphics::loop()
 
 void AppGraphics::end()
 {
-	notes.clear();
+	countdown = nullptr;
+	countdown_render = nullptr;
+	countdown_data.active = false;
+
+	keys.clear();
 	piano_scene = nullptr;
 	neon = nullptr;
 }

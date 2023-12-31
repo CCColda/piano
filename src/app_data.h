@@ -15,6 +15,14 @@ enum AppState {
 	FINISHED = 2
 };
 
+enum GameState {
+	SANDBOX = 0,
+	STANDBY_TO_PLAY = 1,
+	COUNTDOWN = 2,
+	PLAYING = 3,
+	SCORE = 4
+};
+
 struct AppConditionVars {
 	std::mutex serial_done_mutex, al_done_mutex;
 	std::condition_variable serial_done, al_done;
@@ -26,6 +34,7 @@ struct AppData {
 	AppConditionVars condition_variables;
 
 	std::atomic_int state;
+	std::atomic_int game_state;
 };
 
 struct AppCommandLine {

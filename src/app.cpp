@@ -75,6 +75,7 @@ bool PianoApp::initCommandLine(int argc, const char *argv[])
 	}
 
 	data.state = AppState::RUNNING;
+	data.game_state = GameState::SANDBOX;
 
 	return true;
 }
