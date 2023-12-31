@@ -21,7 +21,23 @@ set(
 	src/serial_notes.cpp
 )
 
+set(NEON_BUILD_PLATFORM ON CACHE BOOL "")
+set(NEON_COPY_DATA_FILES ON CACHE BOOL "")
+set(CMAKE_BUILD_TYPE DEBUG)
+option(PIANO_BUILD_WITH_FLUIDSYNTH OFF "Build with fluidsynth")
+
 find_package(OpenAL REQUIRED)
+
+set(PIANO_MIDI_ENABLED 0)
+if (PIANO_BUILD_WITH_FLUIDSYNTH)
+	find_package(FluidSynth)
+	if (NOT FluidSynth_FOUND)
+		message(WARNING "FluidSynth was not found. Midi playback won't be enabled.")
+	else()
+		set(PIANO_MIDI_ENABLED 1)
+	endif()
+endif()
+
 
 include(FetchContent)
 
@@ -57,10 +73,6 @@ add_library(Midifile::Midifile STATIC IMPORTED)
 add_dependencies(Midifile::Midifile MidifileBuild)
 set_property(TARGET Midifile::Midifile PROPERTY IMPORTED_LOCATION ${midifile_SOURCE_DIR}/lib/libmidifile.a)
 
-set(NEON_BUILD_PLATFORM ON CACHE BOOL "")
-set(NEON_COPY_DATA_FILES ON CACHE BOOL "")
-set(CMAKE_BUILD_TYPE DEBUG)
-
 add_subdirectory(lib/neon)
 
 add_executable(piano)
@@ -68,8 +80,13 @@ add_dependencies(piano Midifile::Midifile)
 
 target_include_directories(piano PRIVATE ${OPENAL_INCLUDE_DIR} ${NEON_INCLUDE_DIR} ${midifile_SOURCE_DIR}/include)
 target_sources(piano PRIVATE ${PIANO_SOURCES})
+target_compile_definitions(piano PRIVATE PIANO_MIDI_ENABLED=${PIANO_MIDI_ENABLED})
 target_compile_features(piano PRIVATE cxx_std_17)
 target_link_libraries(piano PRIVATE CLI11::CLI11 OpenAL::OpenAL colda::neon colda::neon::platform Midifile::Midifile)
+
+if (${PIANO_MIDI_ENABLED})
+	target_link_libraries(piano PRIVATE FluidSynth::libfluidsynth)
+endif()
 
 add_custom_command(
 	TARGET piano

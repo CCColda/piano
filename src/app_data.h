@@ -43,6 +43,7 @@ struct AppCommandLine {
 	unsigned int baud;
 	Serial::Settings serialSettings;
 	float volume;
+	Audio::Playback playback;
 };
 
 #endif // !defined(PIANO_APP_DATA_H)

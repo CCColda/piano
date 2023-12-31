@@ -1,7 +1,5 @@
 #include "app_audio_thread.h"
 
-#include "audio.h"
-
 #include <thread>
 
 std::unordered_set<Note> setDifference(const std::unordered_set<Note> &base, const std::unordered_set<Note> &other)
@@ -15,9 +13,9 @@ std::unordered_set<Note> setDifference(const std::unordered_set<Note> &base, con
 	return result;
 }
 
-void openal_thread(AppData *data, float volume)
+void openal_thread(AppData *data, float volume, Audio::Playback playback)
 {
-	if (!data->audio.begin()) {
+	if (!data->audio.begin(playback)) {
 		data->state = AppState::FINISHED;
 	}
 	else {
@@ -38,6 +36,8 @@ void openal_thread(AppData *data, float volume)
 
 		for (const auto &noteToPlay : locallyAvailableButNotPlayed)
 			data->audio.playNote(noteToPlay);
+
+		data->audio.update();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}

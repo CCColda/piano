@@ -42,6 +42,7 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 	arguments.baud = 115200;
 	arguments.serialSettings = Serial::ARDUINO_SETTINGS;
 	arguments.volume = 0.3f;
+	arguments.playback = Audio::PLAYBACK_SINE;
 
 	Logger::console = Logger::openStaticOutputStream(std::cout);
 	Logger::logLevel = Logger::Level::LVL_VERBOSE;
@@ -51,6 +52,9 @@ bool PianoApp::initCommandLine(int argc, const char *argv[])
 {
 	commandLine.add_option("-m,--midi,--midifile,--mid", arguments.midi, "The midi file to open")
 	    ->check(CLI::ExistingFile);
+
+	commandLine.add_option("--playback", arguments.playback, "The playback mode.")
+	    ->transform(CLI::CheckedTransformer(Audio::PLAYBACK_MAP, CLI::ignore_case));
 
 	commandLine.add_option("-p,--port", arguments.port, "The serial port to connect to")
 	    ->check(PortValidator());
@@ -82,7 +86,7 @@ bool PianoApp::initCommandLine(int argc, const char *argv[])
 
 bool PianoApp::initAudio()
 {
-	m_openal_thread_handle = std::thread(openal_thread, &data, arguments.volume);
+	m_openal_thread_handle = std::thread(openal_thread, &data, arguments.volume, arguments.playback);
 
 	std::unique_lock lock(data.condition_variables.al_done_mutex);
 	data.condition_variables.al_done.wait_for(lock, std::chrono::seconds(5));
