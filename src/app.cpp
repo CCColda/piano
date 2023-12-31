@@ -49,6 +49,9 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 
 bool PianoApp::initCommandLine(int argc, const char *argv[])
 {
+	commandLine.add_option("-m,--midi,--midifile,--mid", arguments.midi, "The midi file to open")
+	    ->check(CLI::ExistingFile);
+
 	commandLine.add_option("-p,--port", arguments.port, "The serial port to connect to")
 	    ->check(PortValidator());
 

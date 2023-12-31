@@ -29,6 +29,7 @@ struct AppData {
 };
 
 struct AppCommandLine {
+	std::string midi;
 	std::string port;
 	unsigned int baud;
 	Serial::Settings serialSettings;

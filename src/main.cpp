@@ -1,17 +1,8 @@
-#include <CLI/CLI.hpp>
 #include <iostream>
-
-#include <cstdint>
-
-#include <thread>
 
 #include "app.h"
 
-#include "app_data.h"
-#include "serial_parser.h"
-#include "windows_serial.h"
-
-#include "audio.h"
+#include <MidiFile.h>
 
 int main(int argc, char *argv[])
 {
@@ -19,6 +10,38 @@ int main(int argc, char *argv[])
 
 	if (!app.initCommandLine(argc, const_cast<const char **>(argv))) {
 		return 1;
+	}
+	else {
+		using namespace smf;
+		MidiFile f;
+		f.read(app.arguments.midi);
+
+		f.doTimeAnalysis();
+		f.linkNotePairs();
+
+		{
+			using namespace std;
+			int tracks = f.getTrackCount();
+			cout << "TPQ: " << f.getTicksPerQuarterNote() << endl;
+			if (tracks > 1)
+				cout << "TRACKS: " << tracks << endl;
+			for (int track = 0; track < tracks; track++) {
+				if (tracks > 1)
+					cout << "\nTrack " << track << endl;
+				cout << "Tick\tSeconds\tDur\tMessage" << endl;
+				for (int event = 0; event < f[track].size(); event++) {
+					cout << dec << f[track][event].tick;
+					cout << '\t' << dec << f[track][event].seconds;
+					cout << '\t';
+					if (f[track][event].isNoteOn())
+						cout << f[track][event].getDurationInSeconds();
+					cout << '\t' << hex;
+					for (int i = 0; i < f[track][event].size(); i++)
+						cout << (int)f[track][event][i] << ' ';
+					cout << endl;
+				}
+			}
+		}
 	}
 
 	if (!app.initAudio()) {
