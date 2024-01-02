@@ -47,6 +47,7 @@ struct AppCommandLine {
 	float yscale;
 	unsigned int countdown;
 	int midi_transpose;
+	std::string soundfont;
 };
 
 #endif // !defined(PIANO_APP_DATA_H)

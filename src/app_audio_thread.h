@@ -4,6 +4,6 @@
 #include "app_data.h"
 #include "audio.h"
 
-void openal_thread(AppData *data, float volume, Audio::Playback playback);
+void openal_thread(AppData *data, float volume, Audio::Playback playback, std::string soundfont);
 
 #endif // !defined(PIANO_APP_AUDIO_THREAD_H)

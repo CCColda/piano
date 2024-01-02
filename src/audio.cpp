@@ -8,6 +8,7 @@
 #include <functional>
 
 namespace {
+#if PIANO_AL_ENABLED
 constexpr static const size_t WAVE_RES = 11025;
 constexpr static const double BASE_FREQUENCY = 440.0;
 ALuint makeSineBuffer()
@@ -66,27 +67,6 @@ ALuint makeBufferedSource(ALuint buf, float pitch)
 
 	return src;
 }
-
-#if PIANO_MIDI_ENABLED
-ALuint makeMidiSource(ALuint *buffers, std::size_t buffer_count)
-{
-	ALuint alsrc = 0;
-
-	alGenSources(1, &alsrc);
-	alSourceQueueBuffers(alsrc, buffer_count, buffers);
-	alSourcePlay(alsrc);
-
-	return alsrc;
-}
-
-void updateMidiBuffer(ALuint albuf, fluid_synth_t *synth)
-{
-	std::int16_t buffer[WAVE_RES * 2];
-	fluid_synth_write_s16(synth, WAVE_RES, buffer, 0, 2, buffer, 1, 2);
-
-	alBufferData(albuf, AL_FORMAT_STEREO16, buffer, sizeof(buffer), WAVE_RES);
-}
-
 #endif
 } // namespace
 
@@ -94,13 +74,20 @@ void updateMidiBuffer(ALuint albuf, fluid_synth_t *synth)
 #if PIANO_MIDI_ENABLED
     {"midi", Audio::Playback::PLAYBACK_MIDI},
 #endif
+#if PIANO_AL_ENABLED
     {"square", Audio::Playback::PLAYBACK_SQUARE},
     {"sine", Audio::Playback::PLAYBACK_SINE},
-    {"triangle", Audio::Playback::PLAYBACK_TRIANGLE}};
+    {"triangle", Audio::Playback::PLAYBACK_TRIANGLE}
+#endif
+};
 
-bool Audio::begin(Playback iplayback)
+bool Audio::begin(Playback iplayback, std::string soundfont)
 {
-	if (context == nullptr) {
+#if PIANO_AL_ENABLED
+	if (iplayback != PLAYBACK_MIDI) {
+		if (context != nullptr)
+			return false;
+
 		device = alcOpenDevice(nullptr);
 		if (!device)
 			return false;
@@ -112,90 +99,52 @@ bool Audio::begin(Playback iplayback)
 		}
 
 		alcMakeContextCurrent(context);
-
-		playback = iplayback;
-
-		switch (playback) {
-			case PLAYBACK_SINE:
-				note_buffer = makeSineBuffer();
-				break;
-			case PLAYBACK_SQUARE:
-				note_buffer = makeSquareBuffer();
-				break;
-			case PLAYBACK_TRIANGLE:
-				note_buffer = makeTriangleBuffer();
-				break;
-			case PLAYBACK_MIDI:
-				note_buffer = 0;
-#if PIANO_MIDI_ENABLED
-				auto *settings = new_fluid_settings();
-				fluid_settings_setstr(settings, "player.timing-source", "sample");
-				fluid_settings_setstr(settings, "synth.lock-memory", "0");
-
-				synth = new_fluid_synth(settings);
-				delete_fluid_settings(settings);
-
-				midi_source = makeMidiSource(midi_buffers, MIDI_BUFFER_COUNT);
-				alGenBuffers(MIDI_BUFFER_COUNT, midi_buffers);
-				for (int i = 0; i < MIDI_BUFFER_COUNT; i++) {
-					updateMidiBuffer(midi_buffers[i], synth);
-				}
-#endif
-				break;
-		}
-
-		return true;
-	}
-	return false;
-}
-
-void Audio::update()
-{
-#if PIANO_MIDI_ENABLED
-	if (playback == PLAYBACK_MIDI) {
-		ALint processed_buf_count;
-		alGetSourcei(midi_source, AL_BUFFERS_PROCESSED, &processed_buf_count);
-		if (processed_buf_count == 0) {
-			return;
-		}
-
-		auto unqueued = std::vector<ALuint>(processed_buf_count);
-
-		alSourceUnqueueBuffers(midi_source, processed_buf_count, unqueued.data());
-		for (int i = 0; i < processed_buf_count; ++i)
-			updateMidiBuffer(unqueued[i], synth);
-
-		alSourceQueueBuffers(midi_source, processed_buf_count, unqueued.data());
 	}
 #endif
+
+	playback = iplayback;
+
+	switch (playback) {
+#if PIANO_AL_ENABLED
+		case PLAYBACK_SINE:
+			note_buffer = makeSineBuffer();
+			break;
+		case PLAYBACK_SQUARE:
+			note_buffer = makeSquareBuffer();
+			break;
+		case PLAYBACK_TRIANGLE:
+			note_buffer = makeTriangleBuffer();
+			break;
+#endif
+#if PIANO_MIDI_ENABLED
+		case PLAYBACK_MIDI:
+			settings = new_fluid_settings();
+
+			synth = new_fluid_synth(settings);
+			driver = new_fluid_audio_driver(settings, synth);
+			fluid_synth_sfload(synth, soundfont.c_str(), 1);
+			break;
+#endif
+	}
+
+	return true;
 }
 
 void Audio::end()
 {
-	if (context != nullptr) {
+#if PIANO_AL_ENABLED
+	if (playback != PLAYBACK_MIDI) {
+		if (context == nullptr)
+			return;
+
 		for (const auto &activeNote : activeNotes) {
 			alSourceStop(activeNote.second);
 			alDeleteSources(1, &(activeNote.second));
 		}
 		activeNotes.clear();
 
-		if (playback != PLAYBACK_MIDI) {
-			alDeleteBuffers(1, &note_buffer);
-			note_buffer = 0;
-		}
-#if PIANO_MIDI_ENABLED
-		else {
-			fluid_synth_all_notes_off(synth, 0);
-
-			delete_fluid_synth(synth);
-
-			alSourceStop(midi_source);
-			alDeleteSources(1, &(midi_source));
-			midi_source = 0;
-
-			alDeleteBuffers(MIDI_BUFFER_COUNT, midi_buffers);
-		}
-#endif
+		alDeleteBuffers(1, &note_buffer);
+		note_buffer = 0;
 
 		alcMakeContextCurrent(nullptr);
 		alcDestroyContext(context);
@@ -203,11 +152,32 @@ void Audio::end()
 
 		context = nullptr;
 	}
+#endif
+
+#if PIANO_MIDI_ENABLED
+	if (playback == PLAYBACK_MIDI) {
+		fluid_synth_all_notes_off(synth, 0);
+
+		delete_fluid_audio_driver(driver);
+		delete_fluid_synth(synth);
+		delete_fluid_settings(settings);
+	}
+#endif
 }
 
 void Audio::setVolume(float volume)
 {
-	alListenerf(AL_GAIN, volume);
+#if PIANO_AL_ENABLED
+	if (playback != PLAYBACK_MIDI) {
+		alListenerf(AL_GAIN, volume);
+	}
+#endif
+
+#ifdef PIANO_MIDI_ENABLED
+	if (playback == PLAYBACK_MIDI) {
+		fluid_settings_setnum(settings, "synth.gain", (double)volume);
+	}
+#endif
 }
 
 std::unordered_set<Note> Audio::getActiveNotes() const
@@ -223,34 +193,42 @@ void Audio::playNote(Note note)
 {
 #if PIANO_MIDI_ENABLED
 	if (playback == Playback::PLAYBACK_MIDI) {
-		fluid_synth_noteon(synth, 0, note.toMidi(), 64);
+		std::printf("Playing %d %d\n", note.key, note.octave);
+		fluid_synth_noteon(synth, 0, note.toMidi(), 80);
+		activeNotes[note] = 1;
 	}
-	else
 #endif
-	{
+
+#if PIANO_AL_ENABLED
+	if (playback != PLAYBACK_MIDI) {
 		ALuint source = makeBufferedSource(note_buffer, note.toRelativePitch());
 
 		alSourcePlay(source);
 
 		activeNotes[note] = source;
 	}
+#endif
 }
 
 void Audio::stopNote(Note note)
 {
 #if PIANO_MIDI_ENABLED
 	if (playback == Playback::PLAYBACK_MIDI) {
+		std::printf("Stopping %d %d\n", note.key, note.octave);
 		fluid_synth_noteoff(synth, 0, note.toMidi());
+		activeNotes.erase(note);
 	}
-	else
 #endif
-	{
+
+#if PIANO_AL_ENABLED
+	if (playback != PLAYBACK_MIDI) {
 		const ALuint source = activeNotes[note];
 
 		alSourceStop(source);
 		alDeleteSources(1, &source);
 		activeNotes.erase(note);
 	}
+#endif
 }
 
 bool Audio::active() const

@@ -24,11 +24,12 @@ set(
 set(NEON_BUILD_PLATFORM ON CACHE BOOL "")
 set(NEON_COPY_DATA_FILES ON CACHE BOOL "")
 set(CMAKE_BUILD_TYPE DEBUG)
-option(PIANO_BUILD_WITH_FLUIDSYNTH OFF "Build with fluidsynth")
-
-find_package(OpenAL REQUIRED)
+option(PIANO_BUILD_WITH_FLUIDSYNTH OFF "Build with fluidsynth for midi playback")
+option(PIANO_BUILD_WITH_OPENAL ON "Build with OpenAL")
 
 set(PIANO_MIDI_ENABLED 0)
+set(PIANO_AL_ENABLED 0)
+
 if (PIANO_BUILD_WITH_FLUIDSYNTH)
 	find_package(FluidSynth)
 	if (NOT FluidSynth_FOUND)
@@ -38,6 +39,19 @@ if (PIANO_BUILD_WITH_FLUIDSYNTH)
 	endif()
 endif()
 
+if (PIANO_BUILD_WITH_OPENAL)
+	find_package(OpenAL)
+
+	if (NOT OpenAL_FOUND)
+		message(WARNING "OpenAL was not found. Simple playback won't be enabled.")
+	else()
+		set(PIANO_AL_ENABLED 1)
+	endif()
+endif()
+
+if (NOT PIANO_AL_ENABLED AND NOT PIANO_MIDI_ENABLED)
+	message(FATAL_ERROR "Can't build without sound support.")
+endif()
 
 include(FetchContent)
 
@@ -78,14 +92,19 @@ add_subdirectory(lib/neon)
 add_executable(piano)
 add_dependencies(piano Midifile::Midifile)
 
-target_include_directories(piano PRIVATE ${OPENAL_INCLUDE_DIR} ${NEON_INCLUDE_DIR} ${midifile_SOURCE_DIR}/include)
+target_include_directories(piano PRIVATE ${NEON_INCLUDE_DIR} ${midifile_SOURCE_DIR}/include)
 target_sources(piano PRIVATE ${PIANO_SOURCES})
-target_compile_definitions(piano PRIVATE PIANO_MIDI_ENABLED=${PIANO_MIDI_ENABLED})
+target_compile_definitions(piano PRIVATE PIANO_MIDI_ENABLED=${PIANO_MIDI_ENABLED} PIANO_AL_ENABLED=${PIANO_AL_ENABLED})
 target_compile_features(piano PRIVATE cxx_std_17)
-target_link_libraries(piano PRIVATE CLI11::CLI11 OpenAL::OpenAL colda::neon colda::neon::platform Midifile::Midifile)
+target_link_libraries(piano PRIVATE CLI11::CLI11 colda::neon colda::neon::platform Midifile::Midifile)
 
 if (${PIANO_MIDI_ENABLED})
 	target_link_libraries(piano PRIVATE FluidSynth::libfluidsynth)
+endif()
+
+if (${PIANO_AL_ENABLED})
+	target_include_directories(piano PRIVATE ${OPENAL_INCLUDE_DIR})
+	target_link_libraries(piano PRIVATE OpenAL::OpenAL)
 endif()
 
 add_custom_command(

@@ -423,7 +423,7 @@ void AppGraphics::beginCountdown()
 	}
 
 	m_midi_data.active = true;
-	m_midi_data.playing_started = now + std::chrono::seconds(m_countdown_begin + 1);
+	m_midi_data.playing_started = now + std::chrono::seconds(m_countdown_begin);
 }
 
 void AppGraphics::setNotes(const std::vector<MidiNote> &notes)

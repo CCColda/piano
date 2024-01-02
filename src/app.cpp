@@ -53,8 +53,8 @@ std::vector<AppGraphics::MidiNote> loadNotesFromFile(const std::string &path, in
 				if (note >= AppGraphics::STARTING_NOTE && note <= AppGraphics::ENDING_NOTE) {
 					result.push_back(AppGraphics::MidiNote{
 					    note,
-					    midifile[track][ev].seconds,
-					    midifile[track][ev].getDurationInSeconds()});
+					    (float)midifile[track][ev].seconds,
+					    (float)midifile[track][ev].getDurationInSeconds()});
 				}
 				else {
 					std::cerr << "Note " << note << " on track " << track << " (event " << ev << ") is invalid." << std::endl;
@@ -79,18 +79,25 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 	arguments.baud = 115200;
 	arguments.serialSettings = Serial::ARDUINO_SETTINGS;
 	arguments.volume = 0.3f;
+#if PIANO_AL_ENABLED
 	arguments.playback = Audio::PLAYBACK_SINE;
+#else
+	arguments.playback = Audio::PLAYBACK_MIDI;
+#endif
 	arguments.countdown = 3;
 	arguments.yscale = 100.0f;
 	arguments.midi_transpose = 0;
 
 	Logger::console = Logger::openStaticOutputStream(std::cout);
-	Logger::logLevel = Logger::Level::LVL_VERBOSE;
+	Logger::logLevel = Logger::Level::LVL_INFO;
 }
 
 bool PianoApp::initCommandLine(int argc, const char *argv[])
 {
 	commandLine.add_option("-m,--midi,--midifile,--mid", arguments.midi, "The midi file to open")
+	    ->check(CLI::ExistingFile);
+
+	commandLine.add_option("-f,--sf,--soundfont", arguments.soundfont, "The soundfont file to open")
 	    ->check(CLI::ExistingFile);
 
 	commandLine.add_option("--midi-transpose,--transpose", arguments.midi_transpose, "The number of midi notes to transpose by");
@@ -134,7 +141,7 @@ bool PianoApp::initCommandLine(int argc, const char *argv[])
 
 bool PianoApp::initAudio()
 {
-	m_openal_thread_handle = std::thread(openal_thread, &data, arguments.volume, arguments.playback);
+	m_openal_thread_handle = std::thread(openal_thread, &data, arguments.volume, arguments.playback, arguments.soundfont);
 
 	std::unique_lock lock(data.condition_variables.al_done_mutex);
 	data.condition_variables.al_done.wait_for(lock, std::chrono::seconds(5));

@@ -1,8 +1,10 @@
 #ifndef PIANO_AUDIO_H
 #define PIANO_AUDIO_H
 
+#if PIANO_AL_ENABLED
 #include <AL.h>
 #include <ALC.h>
+#endif
 
 #include <chrono>
 #include <list>
@@ -30,18 +32,20 @@ public:
 	};
 
 protected:
+#if PIANO_AL_ENABLED
 	ALCcontext *context;
 	ALCdevice *device;
 
 	ALuint note_buffer;
-
-#if PIANO_MIDI_ENABLED
-	ALuint midi_source;
-	ALuint midi_buffers[MIDI_BUFFER_COUNT];
-	fluid_synth_t *synth;
 #endif
 
-	std::unordered_map<Note, ALuint> activeNotes;
+#if PIANO_MIDI_ENABLED
+	fluid_synth_t *synth;
+	fluid_audio_driver_t *driver;
+	fluid_settings_t *settings;
+#endif
+
+	std::unordered_map<Note, unsigned int> activeNotes;
 
 	Audio::Playback playback;
 
@@ -49,8 +53,7 @@ public:
 	static std::map<std::string, Playback> PLAYBACK_MAP;
 
 public:
-	bool begin(Audio::Playback playback);
-	void update();
+	bool begin(Audio::Playback playback, std::string soundfont);
 	void end();
 
 	void setVolume(float volume);

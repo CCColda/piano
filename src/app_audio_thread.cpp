@@ -13,9 +13,9 @@ std::unordered_set<Note> setDifference(const std::unordered_set<Note> &base, con
 	return result;
 }
 
-void openal_thread(AppData *data, float volume, Audio::Playback playback)
+void openal_thread(AppData *data, float volume, Audio::Playback playback, std::string soundfont)
 {
-	if (!data->audio.begin(playback)) {
+	if (!data->audio.begin(playback, soundfont)) {
 		data->state = AppState::FINISHED;
 	}
 	else {
@@ -36,8 +36,6 @@ void openal_thread(AppData *data, float volume, Audio::Playback playback)
 
 		for (const auto &noteToPlay : locallyAvailableButNotPlayed)
 			data->audio.playNote(noteToPlay);
-
-		data->audio.update();
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
