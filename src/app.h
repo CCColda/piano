@@ -30,6 +30,8 @@ public:
 	bool initGraphics();
 	bool initSerial();
 
+	void onClick(unsigned x, unsigned y, Platform::ClickType t, Platform::ClickDirection d);
+
 	void mainLoop();
 
 	void cleanup();

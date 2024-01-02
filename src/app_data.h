@@ -44,6 +44,9 @@ struct AppCommandLine {
 	Serial::Settings serialSettings;
 	float volume;
 	Audio::Playback playback;
+	float yscale;
+	unsigned int countdown;
+	int midi_transpose;
 };
 
 #endif // !defined(PIANO_APP_DATA_H)

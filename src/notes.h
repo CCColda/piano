@@ -17,8 +17,8 @@ struct Note {
 
 	constexpr bool isSharp() const { return key == Note::As || key == Note::Cs || key == Note::Ds || key == Note::Fs || key == Note::Gs; }
 
-	constexpr static Note fromMidi(std::uint8_t midi) { return Note{Key((midi - 21) % 12), std::uint8_t((midi - 21) / 12)}; }
-	constexpr std::uint8_t toMidi() const { return octave * 12 + std::uint8_t(key) + 21; }
+	constexpr static Note fromMidi(std::uint8_t midi) { return Note{Key((midi - 12) % 12), std::uint8_t((midi - 12) / 12)}; }
+	constexpr std::uint8_t toMidi() const { return octave * 12 + std::uint8_t(key) + 12; }
 
 	constexpr int compare(const Note &other) const { return toMidi() - other.toMidi(); }
 

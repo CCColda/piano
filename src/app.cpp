@@ -10,6 +10,8 @@
 #include "app_audio_thread.h"
 #include "app_serial_thread.h"
 
+#include <MidiFile.h>
+
 namespace {
 struct PortValidator : public CLI::Validator {
 	PortValidator()
@@ -31,6 +33,41 @@ struct PortValidator : public CLI::Validator {
 	}
 };
 
+std::vector<AppGraphics::MidiNote> loadNotesFromFile(const std::string &path, int transpose)
+{
+	smf::MidiFile midifile;
+	midifile.read(path);
+
+	midifile.doTimeAnalysis();
+	midifile.linkNotePairs();
+
+	std::vector<AppGraphics::MidiNote> result;
+
+	for (int track = 0; track < midifile.getTrackCount(); track++) {
+		result.reserve(midifile[track].size());
+
+		for (int ev = 0; ev < midifile[track].size(); ev++) {
+			if (midifile[track][ev].isNoteOn()) {
+				const Note note = Note::fromMidi(midifile[track][ev][1] + transpose);
+
+				if (note >= AppGraphics::STARTING_NOTE && note <= AppGraphics::ENDING_NOTE) {
+					result.push_back(AppGraphics::MidiNote{
+					    note,
+					    midifile[track][ev].seconds,
+					    midifile[track][ev].getDurationInSeconds()});
+				}
+				else {
+					std::cerr << "Note " << note << " on track " << track << " (event " << ev << ") is invalid." << std::endl;
+				}
+			}
+		}
+	}
+
+	result.shrink_to_fit();
+
+	return result;
+}
+
 } // namespace
 
 //! @todo strings
@@ -43,6 +80,9 @@ PianoApp::PianoApp() : commandLine("Piano app"), data()
 	arguments.serialSettings = Serial::ARDUINO_SETTINGS;
 	arguments.volume = 0.3f;
 	arguments.playback = Audio::PLAYBACK_SINE;
+	arguments.countdown = 3;
+	arguments.yscale = 100.0f;
+	arguments.midi_transpose = 0;
 
 	Logger::console = Logger::openStaticOutputStream(std::cout);
 	Logger::logLevel = Logger::Level::LVL_VERBOSE;
@@ -52,6 +92,14 @@ bool PianoApp::initCommandLine(int argc, const char *argv[])
 {
 	commandLine.add_option("-m,--midi,--midifile,--mid", arguments.midi, "The midi file to open")
 	    ->check(CLI::ExistingFile);
+
+	commandLine.add_option("--midi-transpose,--transpose", arguments.midi_transpose, "The number of midi notes to transpose by");
+
+	commandLine.add_option("--countdown", arguments.countdown, "The countdown before starting the song")
+	    ->check(CLI::Range(0u, 9u, "COUNTDOWN"));
+
+	commandLine.add_option("--yscale", arguments.yscale, "The vertical stretching of bars. Given in the units of pixel/second.")
+	    ->check(CLI::Range(1.0f, INFINITY, "YSCALE"));
 
 	commandLine.add_option("--playback", arguments.playback, "The playback mode.")
 	    ->transform(CLI::CheckedTransformer(Audio::PLAYBACK_MAP, CLI::ignore_case));
@@ -97,7 +145,11 @@ bool PianoApp::initAudio()
 bool PianoApp::initGraphics()
 {
 	//! @todo strings
-	return m_graphics.begin("Piano", 800, 600, &data);
+	m_graphics.onClick = [this](unsigned x, unsigned y, Platform::ClickType t, Platform::ClickDirection d) {
+		this->onClick(x, y, t, d);
+	};
+
+	return m_graphics.begin("Piano", 800, 600, arguments.countdown, arguments.yscale, &data);
 }
 
 bool PianoApp::initSerial()
@@ -108,6 +160,18 @@ bool PianoApp::initSerial()
 	data.condition_variables.serial_done.wait_for(lock, std::chrono::seconds(5));
 
 	return data.state == AppState::RUNNING;
+}
+
+void PianoApp::onClick(unsigned x, unsigned y, Platform::ClickType t, Platform::ClickDirection d)
+{
+	std::cout << "Click: " << x << " " << y << " t=" << (int)t << " d=" << (int)d << std::endl;
+
+	if (d == Platform::ClickDirection::DOWN && t == Platform::ClickType::LEFT) {
+		if (!m_graphics.isGameActive()) {
+			m_graphics.setNotes(loadNotesFromFile(arguments.midi, arguments.midi_transpose));
+			m_graphics.beginCountdown();
+		}
+	}
 }
 
 void PianoApp::mainLoop()
